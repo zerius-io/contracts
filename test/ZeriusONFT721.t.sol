@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "../lib/solidity-examples/contracts/mocks/LZEndpointMock.sol";
-import "../lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
+import "@layerzerolabs/contracts/mocks/LZEndpointMock.sol";
+import "@openzeppelin//contracts/token/ERC721/IERC721Receiver.sol";
 import {Test, console2} from "forge-std/Test.sol";
 
 import {ZeriusONFT721} from "../src/ZeriusONFT721.sol";

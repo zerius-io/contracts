@@ -4,9 +4,11 @@ pragma solidity ^0.8.0;
 import "@layerzerolabs/contracts/token/onft/ONFT721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-//import "../lib/solidity-examples/contracts/token/onft/ONFT721.sol";
-//import "../lib/openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
+/**
+* @title ZeriusONFT721
+* @author polypox
+*/
 contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
 
     uint8 public constant ERROR_TOKEN_URI_LOCKED = 1;
@@ -84,7 +86,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         uint256 _mintFee,
         uint256 _bridgeFee,
         address _feeCollector
-    ) ONFT721("ZeriusNFT V0", "ZV0", _minGasToTransfer, _lzEndpoint) {
+    ) ONFT721("ZeriusNFT V0", "ZVO", _minGasToTransfer, _lzEndpoint) {
         startMintId = _startMintId;
         maxMintId = _endMintId;
         mintFee = _mintFee;
@@ -153,9 +155,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         _validate(newItemId < maxMintId, ERROR_MINT_EXCEEDS_LIMIT);
         _validate(msg.value == feeEarnings, ERROR_MINT_INVALID_FEE);
 
-        unchecked {
-            ++tokenCounter;
-        }
+        ++tokenCounter;
 
         feeEarnedAmount += feeEarnings;
 
@@ -177,9 +177,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         _validate(msg.value == _mintFee, ERROR_MINT_INVALID_FEE);
         _validate(referrer != _msgSender() && referrer != address(0), ERROR_INVALID_REFERER);
 
-        unchecked {
-            ++tokenCounter;
-        }
+        ++tokenCounter;
 
         uint256 referrerBips = referrersEarningBips[referrer];
         uint256 referrerShareBips = referrerBips == 0
