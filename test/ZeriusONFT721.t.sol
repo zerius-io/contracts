@@ -8,8 +8,8 @@ import {Test, console2} from "forge-std/Test.sol";
 import {ZeriusONFT721} from "../src/ZeriusONFT721.sol";
 
 /**
+* @author Zerius
 * @title Test for ZeriusONFT721 contract
-* @author polypox
 * @notice Use this contract for foundry tests only
 */
 contract ZeriusONFT721Test is Test, IERC721Receiver {

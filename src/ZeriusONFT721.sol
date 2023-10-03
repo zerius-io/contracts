@@ -6,11 +6,28 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
+* @author Zerius
 * @title ZeriusONFT721
-* @author polypox
 */
 contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
 
+    /************
+    *   ERRORS  *
+    ************/
+
+    /**
+    * @notice Contract error codes, used to specify the error
+    * CODE LIST:
+    * E1    "Token URI is locked"
+    * E2    "Mint exceeds the limit"
+    * E3    "Invalid mint fee"
+    * E4    "Invalid token ID"
+    * E5    "Invalid fee collector address"
+    * E6    "Invalid earned fee amount: nothing to claim"
+    * E7    "Caller is not a fee collector"
+    * E8    "Invalid referral bips: value is too high"
+    * E9    "Invalid referer address"
+    */
     uint8 public constant ERROR_TOKEN_URI_LOCKED = 1;
     uint8 public constant ERROR_MINT_EXCEEDS_LIMIT = 2;
     uint8 public constant ERROR_MINT_INVALID_FEE = 3;
@@ -21,8 +38,19 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     uint8 public constant ERROR_REFERRAL_BIPS_TOO_HIGH = 8;
     uint8 public constant ERROR_INVALID_REFERER = 9;
 
+    /**
+    * @notice Basic error, thrown every time something goes wrong according to the contract logic.
+    * @dev The error code indicates more details.
+    */
     error ZeriusONFT721_CoreError(uint256 errorCode);
 
+    /************
+    *   EVENTS  *
+    ************/
+
+    /**
+    * State change
+    */
     event MintFeeChanged(uint256 indexed oldMintFee, uint256 indexed newMintFee);
     event BridgeFeeChanged(uint256 indexed oldBridgeFee, uint256 indexed newBridgeFee);
     event ReferralEarningBipsChanged(uint256 indexed oldReferralEarningBips, uint256 indexed newReferralEarningBips);
@@ -31,6 +59,9 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI);
     event TokenURILocked();
 
+    /**
+    * Mint / bridge / claim
+    */
     event ONFTMinted(
         address indexed minter,
         uint256 indexed itemId,
@@ -48,36 +79,67 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     event FeeEarningsClaimed(address indexed collector, uint256 claimedAmount);
     event ReferrerEarningsClaimed(address indexed referrer, uint256 claimedAmount);
 
+    /***************
+    *   CONSTANTS  *
+    ***************/
     uint256 public constant ONE_HUNDRED_PERCENT = 10000; // 100%
     uint256 public constant FIFTY_PERCENT = 5000; // 50%
     uint256 public constant DENOMINATOR = ONE_HUNDRED_PERCENT; // 100%
 
+    /***********************
+    *   VARIABLES / STATES *
+    ***********************/
+
+    /// TOKEN ID ///
     uint256 public immutable startMintId;
     uint256 public immutable maxMintId;
 
+    uint256 public tokenCounter;
+
+    /// FEE ///
     uint256 public mintFee;
     uint256 public bridgeFee;
     address public feeCollector;
 
+    uint256 public feeEarnedAmount;
+    uint256 public feeClaimedAmount;
+
+    /// REFERRAL FEE ///
     uint256 public referralEarningBips;
     mapping (address => uint256) public referrersEarningBips;
     mapping (address => uint256) public referredTransactionsCount;
     mapping (address => uint256) public referrersEarnedAmount;
     mapping (address => uint256) public referrersClaimedAmount;
 
-    uint256 public feeEarnedAmount;
-    uint256 public feeClaimedAmount;
-
-    uint256 public tokenCounter;
-
+    /// TOKEN URI ///
     string private _tokenBaseURI;
     bool public tokenBaseURILocked;
 
+    /***************
+    *   MODIFIERS  *
+    ***************/
+
+    /**
+    * @dev Protects functions available only to the fee collector, e.g. fee claiming
+    */
     modifier onlyFeeCollector() {
         _checkFeeCollector();
         _;
     }
 
+    /*****************
+    *   CONSTRUCTOR  *
+    *****************/
+
+    /**
+    * @param _minGasToTransfer min amount of gas required to transfer, and also store the payload. See {ONFT721Core}
+    * @param _lzEndpoint LayerZero endpoint address
+    * @param _startMintId min token ID that can be mined
+    * @param _endMintId max token ID that can be mined
+    * @param _mintFee fee amount to be sent as message value when calling the mint function
+    * @param _bridgeFee fee amount to be sent as part of the value message when calling the mint function
+    * @param _feeCollector the address to which the fee claiming is authorized
+    */
     constructor(
         uint256 _minGasToTransfer,
         address _lzEndpoint,
@@ -95,18 +157,40 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         tokenCounter = _startMintId;
     }
 
+    /***********************
+    *   SETTERS / GETTERS  *
+    ***********************/
+
+    /**
+    * @notice ADMIN Change minting fee
+    * @param _mintFee new minting fee
+    *
+    * @dev emits {ZeriusONFT721-MintFeeChanged}
+    */
     function setMintFee(uint256 _mintFee) external onlyOwner {
         uint256 oldMintFee = mintFee;
         mintFee = _mintFee;
         emit MintFeeChanged(oldMintFee, _mintFee);
     }
 
+    /**
+    * @notice ADMIN Change bridge fee
+    * @param _bridgeFee new bridge fee
+    *
+    * @dev emits {ZeriusONFT721-BridgeFeeChanged}
+    */
     function setBridgeFee(uint256 _bridgeFee) external onlyOwner {
         uint256 oldBridgeFee = bridgeFee;
         bridgeFee = _bridgeFee;
         emit BridgeFeeChanged(oldBridgeFee, _bridgeFee);
     }
 
+    /**
+    * @notice ADMIN Change referral earning share
+    * @param _referralEarninBips new referral earning share
+    *
+    * @dev emits {ZeriusONFT721-ReferralEarningBipsChanged}
+    */
     function setReferralEarningBips(uint256 _referralEarninBips) external onlyOwner {
         _validate(_referralEarninBips <= FIFTY_PERCENT, ERROR_REFERRAL_BIPS_TOO_HIGH);
         uint256 oldReferralEarningsShareBips = referralEarningBips;
@@ -114,6 +198,13 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit ReferralEarningBipsChanged(oldReferralEarningsShareBips, _referralEarninBips);
     }
 
+    /**
+    * @notice ADMIN Change referral earning share for specific referrer
+    * @param referrer address for which a special share is set
+    * @param earningBips new referral earning share for referrer
+    *
+    * @dev emits {ZeriusONFT721-EarningBipsForReferrerChanged}
+    */
     function setEarningBipsForReferrer(
         address referrer,
         uint256 earningBips
@@ -123,6 +214,12 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit EarningBipsForReferrerChanged(referrer, earningBips);
     }
 
+    /**
+    * @notice ADMIN Change fee collector address
+    * @param _feeCollector new address for the collector
+    *
+    * @dev emits {ZeriusONFT721-FeeCollectorChanged}
+    */
     function setFeeCollector(address _feeCollector) external onlyOwner {
         _validate(_feeCollector != address(0), ERROR_INVALID_COLLECTOR_ADDRESS);
         address oldFeeCollector = feeCollector;
@@ -130,6 +227,12 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit FeeCollectorChanged(oldFeeCollector, _feeCollector);
     }
 
+    /**
+    * @notice ADMIN Change base URI
+    * @param _newTokenBaseURI new URI
+    *
+    * @dev emits {ZeriusONFT721-TokenURIChanged}
+    */
     function setTokenBaseURI(string calldata _newTokenBaseURI) external onlyOwner {
         _validate(!tokenBaseURILocked, ERROR_TOKEN_URI_LOCKED);
         string memory oldTokenBaseURI = _tokenBaseURI;
@@ -137,17 +240,39 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit TokenURIChanged(oldTokenBaseURI, _newTokenBaseURI);
     }
 
+    /**
+    * @notice ADMIN Lock base URI so that it can no longer be changed by the admin
+    *
+    * @dev emits {ZeriusONFT721-TokenURILocked}
+    */
     function lockTokenBaseURI() external onlyOwner {
         _validate(!tokenBaseURILocked, ERROR_TOKEN_URI_LOCKED);
         tokenBaseURILocked = true;
         emit TokenURILocked();
     }
 
+    /**
+    * @notice Retrieving token URI by its ID
+    * @param tokenId identifier of the token
+    *
+    * @dev emits {ZeriusONFT721-TokenURILocked}
+    */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _validate(_exists(tokenId), ERROR_INVALID_TOKEN_ID);
         return string(abi.encodePacked(_tokenBaseURI, "?id=", Strings.toString(tokenId)));
     }
 
+    /************
+    *   MINT    *
+    ************/
+
+    /**
+    * @notice Mint new Zerius ONFT
+    *
+    * @dev new token ID must be in range [startMintId - maxMintId]
+    * @dev tx value must be equal to mintFee. See {ZeriusONFT721-mintFee}
+    * @dev emits {ZeriusONFT721-ONFTMinted}
+    */
     function mint() external payable nonReentrant {
         uint256 newItemId = tokenCounter;
         uint256 feeEarnings = mintFee;
@@ -169,6 +294,15 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         );
     }
 
+    /**
+    * @notice Mint new Zerius ONFT by referral
+    * @param referrer referral address
+    *
+    * @dev new token ID must be in range [startMintId - maxMintId]
+    * @dev tx value must be equal to mintFee. See {ZeriusONFT721-mintFee}
+    * @dev referrer address must be non-zero
+    * @dev emits {ZeriusONFT721-ONFTMinted}
+    */
     function mint(address referrer) public payable nonReentrant {
         uint256 newItemId = tokenCounter;
         uint256 _mintFee = mintFee;
@@ -201,6 +335,21 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         );
     }
 
+    /**************
+    *   BRIDGE    *
+    **************/
+
+    /**
+    * @notice Estimate fee to send token to another chain
+    * @param _dstChainId destination LayerZero chain ID
+    * @param _toAddress address on destination
+    * @param _tokenId token to be sent
+    * @param _useZro flag to use ZRO as fee
+    * @param _adapterParams relayer adapter parameters
+    *
+    * @dev See {ONFT721Core-estimateSendFee}
+    * @dev Overridden to add bridgeFee to native fee
+    */
     function estimateSendFee(
         uint16 _dstChainId,
         bytes memory _toAddress,
@@ -217,6 +366,17 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         );
     }
 
+    /**
+    * @notice Estimate fee to send batch of tokens to another chain
+    * @param _dstChainId destination LayerZero chain ID
+    * @param _toAddress address on destination
+    * @param _tokenIds tokens to be sent
+    * @param _useZro flag to use ZRO as fee
+    * @param _adapterParams relayer adapter parameters
+    *
+    * @dev See {ONFT721Core-estimateSendBatchFee}
+    * @dev Overridden to add bridgeFee to native fee
+    */
     function estimateSendBatchFee(
         uint16 _dstChainId,
         bytes memory _toAddress,
@@ -235,6 +395,19 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         return (nativeFee, zroFee);
     }
 
+    /**
+    * @notice Send token to another chain
+    * @param _from sender address, token owner or approved address
+    * @param _dstChainId destination LayerZero chain ID
+    * @param _toAddress address on destination
+    * @param _tokenId token to be sent
+    * @param _refundAddress address that would receive remaining funds
+    * @param _zroPaymentAddress address that would pay fees in zro
+    * @param _adapterParams relayer adapter parameters
+    *
+    * @dev See {ONFT721Core-sendFrom}
+    * @dev Overridden to collect bridgeFee
+    */
     function sendFrom(
         address _from,
         uint16 _dstChainId,
@@ -255,6 +428,19 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         );
     }
 
+    /**
+    * @notice Send token to another chain
+    * @param _from sender address, token owner or approved address
+    * @param _dstChainId destination LayerZero chain ID
+    * @param _toAddress address on destination
+    * @param _tokenIds tokens to be sent
+    * @param _refundAddress address that would receive remaining funds
+    * @param _zroPaymentAddress address that would pay fees in zro
+    * @param _adapterParams relayer adapter parameters
+    *
+    * @dev See {ONFT721Core-sendBatchFrom}
+    * @dev Overridden to collect bridgeFee
+    */
     function sendBatchFrom(
         address _from,
         uint16 _dstChainId,
@@ -275,6 +461,18 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         );
     }
 
+    /**
+    * @notice Internal function to handle send to another chain
+    * @param _from sender address, token owner or approved address
+    * @param _dstChainId destination LayerZero chain ID
+    * @param _toAddress address on destination
+    * @param _tokenIds tokens to be sent
+    * @param _refundAddress address that would receive remaining funds
+    * @param _zroPaymentAddress address that would pay fees in zro
+    * @param _adapterParams relayer adapter parameters
+    *
+    * @dev emits {ZeriusONFT721-BridgeFeeEarned}
+    */
     function _handleSend(
         address _from,
         uint16 _dstChainId,
@@ -303,6 +501,20 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit BridgeFeeEarned(_from, _dstChainId, _bridgeFee);
     }
 
+    /**
+    * @notice Internal function to handle send to another chain
+    * @param _from sender address, token owner or approved address
+    * @param _dstChainId destination LayerZero chain ID
+    * @param _toAddress address on destination
+    * @param _tokenIds tokens to be sent
+    * @param _refundAddress address that would receive remaining funds
+    * @param _zroPaymentAddress address that would pay fees in zro
+    * @param _adapterParams relayer adapter parameters
+    * @param _nativeFee fee amount to be sent to LayerZero (without bridgeFee)
+    *
+    * @dev Mimics the behavior of {ONFT721Core}
+    * @dev emits {IONFT721Core-SendToChain}
+    */
     function _send(
         address _from,
         uint16 _dstChainId,
@@ -344,6 +556,16 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit SendToChain(_dstChainId, _from, _toAddress, _tokenIds);
     }
 
+    /*************
+    *   CLAIM    *
+    *************/
+
+    /**
+    * @notice FEE_COLLECTOR Claim earned fee (mint + bridge)
+    *
+    * @dev earned amount must be more than zero to claim
+    * @dev emits {ZeriusONFT721-FeeEarningsClaimed}
+    */
     function claimFeeEarnings() external onlyFeeCollector nonReentrant {
         uint256 _feeEarnedAmount = feeEarnedAmount;
         _validate(_feeEarnedAmount != 0, ERROR_NOTHING_TO_CLAIM);
@@ -358,6 +580,12 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit FeeEarningsClaimed(_feeCollector, currentEarnings);
     }
 
+    /**
+    * @notice Claim earned fee from referral mint
+    *
+    * @dev earned amount must be more than zero to claim
+    * @dev emits {ZeriusONFT721-ReferrerEarningsClaimed}
+    */
     function claimReferrerEarnings() external {
         uint256 earnings = referrersEarnedAmount[_msgSender()];
         _validate(earnings != 0, ERROR_NOTHING_TO_CLAIM);
@@ -371,6 +599,13 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         emit ReferrerEarningsClaimed(_msgSender(), earnings);
     }
 
+    /*****************
+    *   OVERRIDES    *
+    *****************/
+
+    /**
+    * @dev See {ERC721-_beforeTokenTransfer}
+    */
     function _beforeTokenTransfer(
         address from,
         address to,
@@ -380,6 +615,9 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
     }
 
+    /**
+    * @dev See {ERC721-supportsInterface}
+    */
     function supportsInterface(
         bytes4 interfaceId
     ) public view virtual override(ERC721Enumerable, ONFT721) returns (bool) {
@@ -387,12 +625,23 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
             super.supportsInterface(interfaceId);
     }
 
+    /***************
+    *   HELPERS    *
+    ***************/
+
+    /**
+    * @notice Checks if address is current fee collector
+    */
     function _checkFeeCollector() internal view {
         _validate(feeCollector == _msgSender(), ERROR_NOT_FEE_COLLECTOR);
     }
 
+    /**
+    * @notice Checks if the condition is met and reverts with an error if not
+    * @param _clause condition to be checked
+    * @param _errorCode code that will be passed in the error
+    */
     function _validate(bool _clause, uint8 _errorCode) internal pure {
         if (!_clause) revert ZeriusONFT721_CoreError(_errorCode);
     }
-
 }
