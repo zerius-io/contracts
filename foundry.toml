@@ -6,7 +6,9 @@ solc = "/opt/homebrew/bin/solc"
 remappings = [
     "ds-test/=lib/forge-std/lib/ds-test/src/",
     "@openzeppelin/=lib/openzeppelin-contracts/",
-    "@chainlink/=lib/chainlink/"
+    "@chainlink/=lib/chainlink/",
+    "@layerzerolabs/=lib/solidity-examples/"
 ]
+via-ir = true
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
