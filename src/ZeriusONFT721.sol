@@ -18,7 +18,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     /**
     * @notice Contract error codes, used to specify the error
     * CODE LIST:
-    * E1    "Token URI is locked"
+    * E1    "Invalid token URI lock state"
     * E2    "Mint exceeds the limit"
     * E3    "Invalid mint fee"
     * E4    "Invalid token ID"
@@ -28,7 +28,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     * E8    "Invalid referral bips: value is too high"
     * E9    "Invalid referer address"
     */
-    uint8 public constant ERROR_TOKEN_URI_LOCKED = 1;
+    uint8 public constant ERROR_INVALID_URI_LOCK_STATE = 1;
     uint8 public constant ERROR_MINT_EXCEEDS_LIMIT = 2;
     uint8 public constant ERROR_MINT_INVALID_FEE = 3;
     uint8 public constant ERROR_INVALID_TOKEN_ID = 4;
@@ -55,9 +55,10 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     event BridgeFeeChanged(uint256 indexed oldBridgeFee, uint256 indexed newBridgeFee);
     event ReferralEarningBipsChanged(uint256 indexed oldReferralEarningBips, uint256 indexed newReferralEarningBips);
     event EarningBipsForReferrerChanged(address indexed referrer, uint256 newEraningBips);
+    event EarningBipsForReferrersChanged(address[] indexed referrers, uint256 newEraningBips);
     event FeeCollectorChanged(address indexed oldFeeCollector, address indexed newFeeCollector);
     event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI);
-    event TokenURILocked();
+    event TokenURILocked(bool indexed newState);
 
     /**
     * Mint / bridge / claim
@@ -147,13 +148,20 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         uint256 _endMintId,
         uint256 _mintFee,
         uint256 _bridgeFee,
-        address _feeCollector
+        address _feeCollector,
+        uint256 _referralEarningBips
     ) ONFT721("ZeriusNFT V0", "ZVO", _minGasToTransfer, _lzEndpoint) {
+        require(_startMintId < _endMintId, "Invalid mint range");
+        require(_endMintId < type(uint256).max, "Incorrect max mint ID");
+        require(_feeCollector != address(0), "Invalid fee collector address");
+        require(_referralEarningBips <= FIFTY_PERCENT, "Invalid referral earning shares");
+
         startMintId = _startMintId;
         maxMintId = _endMintId;
         mintFee = _mintFee;
         bridgeFee = _bridgeFee;
         feeCollector = _feeCollector;
+        referralEarningBips = _referralEarningBips;
         tokenCounter = _startMintId;
     }
 
@@ -215,6 +223,24 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     }
 
     /**
+    * @notice ADMIN Change referral earning share for specific referrers
+    * @param referrers addresses for which a special share is set
+    * @param earningBips new referral earning share for referrers
+    *
+    * @dev emits {ZeriusONFT721-EarningBipsForReferrersChanged}
+    */
+    function setEarningBipsForReferrersBatch(
+        address[] calldata referrers,
+        uint256 earningBips
+    ) external onlyOwner {
+        _validate(earningBips <= ONE_HUNDRED_PERCENT, ERROR_REFERRAL_BIPS_TOO_HIGH);
+        for (uint256 i; i < referrers.length; i++) {
+            referrersEarningBips[referrers[i]] = earningBips;
+        }
+        emit EarningBipsForReferrersChanged(referrers, earningBips);
+    }
+
+    /**
     * @notice ADMIN Change fee collector address
     * @param _feeCollector new address for the collector
     *
@@ -234,21 +260,22 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     * @dev emits {ZeriusONFT721-TokenURIChanged}
     */
     function setTokenBaseURI(string calldata _newTokenBaseURI) external onlyOwner {
-        _validate(!tokenBaseURILocked, ERROR_TOKEN_URI_LOCKED);
+        _validate(!tokenBaseURILocked, ERROR_INVALID_URI_LOCK_STATE);
         string memory oldTokenBaseURI = _tokenBaseURI;
         _tokenBaseURI = _newTokenBaseURI;
         emit TokenURIChanged(oldTokenBaseURI, _newTokenBaseURI);
     }
 
     /**
-    * @notice ADMIN Lock base URI so that it can no longer be changed by the admin
+    * @notice ADMIN Lock / unlock base URI
+    * @param locked lock token URI if true, unlock otherwise
     *
     * @dev emits {ZeriusONFT721-TokenURILocked}
     */
-    function lockTokenBaseURI() external onlyOwner {
-        _validate(!tokenBaseURILocked, ERROR_TOKEN_URI_LOCKED);
-        tokenBaseURILocked = true;
-        emit TokenURILocked();
+    function setTokenBaseURILocked(bool locked) external onlyOwner {
+        _validate(tokenBaseURILocked != locked, ERROR_INVALID_URI_LOCK_STATE);
+        tokenBaseURILocked = locked;
+        emit TokenURILocked(locked);
     }
 
     /**
@@ -278,7 +305,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         uint256 feeEarnings = mintFee;
 
         _validate(newItemId < maxMintId, ERROR_MINT_EXCEEDS_LIMIT);
-        _validate(msg.value == feeEarnings, ERROR_MINT_INVALID_FEE);
+        _validate(msg.value >= feeEarnings, ERROR_MINT_INVALID_FEE);
 
         ++tokenCounter;
 
@@ -308,7 +335,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         uint256 _mintFee = mintFee;
 
         _validate(newItemId < maxMintId, ERROR_MINT_EXCEEDS_LIMIT);
-        _validate(msg.value == _mintFee, ERROR_MINT_INVALID_FEE);
+        _validate(msg.value >= _mintFee, ERROR_MINT_INVALID_FEE);
         _validate(referrer != _msgSender() && referrer != address(0), ERROR_INVALID_REFERER);
 
         ++tokenCounter;

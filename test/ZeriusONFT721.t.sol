@@ -28,9 +28,10 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     event BridgeFeeChanged(uint256 indexed oldBridgeFee, uint256 indexed newBridgeFee);
     event ReferralEarningBipsChanged(uint256 indexed oldReferralEarningBips, uint256 indexed newReferralEarningBips);
     event EarningBipsForReferrerChanged(address indexed referrer, uint256 newEraningBips);
+    event EarningBipsForReferrersChanged(address[] indexed referrer, uint256 newEraningBips);
     event FeeCollectorChanged(address indexed oldFeeCollector, address indexed newFeeCollector);
     event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI);
-    event TokenURILocked();
+    event TokenURILocked(bool indexed newState);
     event ONFTMinted(
         address indexed minter,
         uint256 indexed itemId,
@@ -50,7 +51,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     * ERRORS
     */
 
-    uint8 public constant ERROR_TOKEN_URI_LOCKED = 1;
+    uint8 public constant ERROR_INVALID_URI_LOCK_STATE = 1;
     uint8 public constant ERROR_MINT_EXCEEDS_LIMIT = 2;
     uint8 public constant ERROR_MINT_INVALID_FEE = 3;
     uint8 public constant ERROR_INVALID_TOKEN_ID = 4;
@@ -65,8 +66,8 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     /********************
    * SETUP
    */
-    uint16 public constant OPTIMISM_CHAIN_ID = 1;
-    uint16 public constant ARBITRUM_CHAIN_ID = 0;
+    uint16 public constant DST_CHAIN_ID = 1;
+    uint16 public constant SRC_CHAIN_ID = 0;
     uint256 public constant DST_BATCH_LIMIT = 5;
     uint256 public constant END_MINT_ID = 5;
     uint256 public constant START_MINT_ID = 0;
@@ -89,7 +90,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     */
     function setUp() public {
         _error = ERC721ReceiveError.None;
-        lzEndpointMock = new LZEndpointMock(ARBITRUM_CHAIN_ID);
+        lzEndpointMock = new LZEndpointMock(SRC_CHAIN_ID);
         zeriusONFT721 = new ZeriusONFT721(
             MIN_GAS_TO_TRANSFER,
             address(lzEndpointMock),
@@ -97,10 +98,11 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
             END_MINT_ID,
             MINT_FEE,
             BRIDGE_FEE,
-            PAYABLE_ADDRESS
+            PAYABLE_ADDRESS,
+            0
         );
 
-        dstLzEndpointMock = new LZEndpointMock(OPTIMISM_CHAIN_ID);
+        dstLzEndpointMock = new LZEndpointMock(DST_CHAIN_ID);
         dstZeriusONFT721 = new ZeriusONFT721(
             MIN_GAS_TO_TRANSFER,
             address(dstLzEndpointMock),
@@ -108,16 +110,18 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
             END_MINT_ID,
             MINT_FEE,
             BRIDGE_FEE,
-            PAYABLE_ADDRESS
+            PAYABLE_ADDRESS,
+            0
         );
+
         lzEndpointMock.setDestLzEndpoint(address(dstZeriusONFT721), address(dstLzEndpointMock));
         dstLzEndpointMock.setDestLzEndpoint(address(zeriusONFT721), address(lzEndpointMock));
-        zeriusONFT721.setTrustedRemoteAddress(OPTIMISM_CHAIN_ID, abi.encodePacked(address(dstZeriusONFT721)));
-        dstZeriusONFT721.setTrustedRemoteAddress(ARBITRUM_CHAIN_ID, abi.encodePacked(address(zeriusONFT721)));
 
-        zeriusONFT721.setMinDstGas(OPTIMISM_CHAIN_ID, zeriusONFT721.FUNCTION_TYPE_SEND(), MIN_GAS_TO_TRANSFER);
-//        zeriusONFT721.setDstChainIdToTransferGas(OPTIMISM_CHAIN_ID, MIN_GAS_TO_TRANSFER);
-        zeriusONFT721.setDstChainIdToBatchLimit(OPTIMISM_CHAIN_ID, DST_BATCH_LIMIT);
+        zeriusONFT721.setTrustedRemote(DST_CHAIN_ID, abi.encodePacked(address(dstZeriusONFT721), address(zeriusONFT721)));
+        dstZeriusONFT721.setTrustedRemote(SRC_CHAIN_ID, abi.encodePacked(address(zeriusONFT721), address(dstZeriusONFT721)));
+
+        zeriusONFT721.setMinDstGas(DST_CHAIN_ID, zeriusONFT721.FUNCTION_TYPE_SEND(), MIN_GAS_TO_TRANSFER);
+        zeriusONFT721.setDstChainIdToBatchLimit(DST_CHAIN_ID, DST_BATCH_LIMIT);
     }
 
     /********************
@@ -295,19 +299,19 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         uint256 tokenId = before_tokenCounter - 1;
 
         (uint256 nativeFee, ) = zeriusONFT721.estimateSendFee(
-            OPTIMISM_CHAIN_ID,
-            abi.encodePacked(PAYABLE_ADDRESS),
+            DST_CHAIN_ID,
+            abi.encodePacked(address(this)),
             tokenId,
             false,
             abi.encodePacked(LZ_VERSION, MIN_GAS_TO_TRANSFER)
         );
 
         vm.expectEmit();
-        emit BridgeFeeEarned(sender, OPTIMISM_CHAIN_ID, BRIDGE_FEE);
-        zeriusONFT721.sendFrom{value: BRIDGE_FEE + nativeFee}(
+        emit BridgeFeeEarned(sender, DST_CHAIN_ID, BRIDGE_FEE);
+        zeriusONFT721.sendFrom{value: nativeFee + MIN_GAS_TO_TRANSFER}(
             address(this),
-            OPTIMISM_CHAIN_ID,
-            abi.encodePacked(PAYABLE_ADDRESS),
+            DST_CHAIN_ID,
+            abi.encodePacked(address(this)),
             tokenId,
             payable(address(this)),
             address(0x0),
@@ -339,7 +343,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         }
 
         (uint256 nativeFee, ) = zeriusONFT721.estimateSendBatchFee(
-            OPTIMISM_CHAIN_ID,
+            DST_CHAIN_ID,
             abi.encodePacked(PAYABLE_ADDRESS),
             tokenIds,
             false,
@@ -347,10 +351,10 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         );
 
         vm.expectEmit();
-        emit BridgeFeeEarned(sender, OPTIMISM_CHAIN_ID, BRIDGE_FEE);
-        zeriusONFT721.sendBatchFrom{value: BRIDGE_FEE + nativeFee}(
+        emit BridgeFeeEarned(sender, DST_CHAIN_ID, BRIDGE_FEE);
+        zeriusONFT721.sendBatchFrom{value: nativeFee + MIN_GAS_TO_TRANSFER}(
             address(this),
-            OPTIMISM_CHAIN_ID,
+            DST_CHAIN_ID,
             abi.encodePacked(PAYABLE_ADDRESS),
             tokenIds,
             payable(address(this)),
@@ -379,7 +383,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         vm.expectRevert("tokenIds[] is empty");
         zeriusONFT721.sendBatchFrom{value: BRIDGE_FEE + 0.1 ether}(
             address(this),
-            OPTIMISM_CHAIN_ID,
+            DST_CHAIN_ID,
             abi.encodePacked(PAYABLE_ADDRESS),
             tokenIds,
             payable(address(this)),
@@ -396,7 +400,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         vm.expectRevert("batch size exceeds dst batch limit");
         zeriusONFT721.sendBatchFrom{value: BRIDGE_FEE + 0.1 ether}(
             address(this),
-            OPTIMISM_CHAIN_ID,
+            DST_CHAIN_ID,
             abi.encodePacked(PAYABLE_ADDRESS),
             tokenIds,
             payable(address(this)),
@@ -586,6 +590,26 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         zeriusONFT721.setEarningBipsForReferrer(referrer, newReferrerEarningBips);
     }
 
+    /// @custom:test Setting new earning bips for referrers
+    /// @dev See {ZeriusONFT721-setEarningBipsForReferrersBatch}
+    function test_setEarningBipsForReferrersBatch_success() public {
+        uint256 referrersCount = 1;
+        address[] memory referrers = new address[](referrersCount);
+        for (uint256 i; i < referrersCount; i++) {
+            referrers[i] = PAYABLE_ADDRESS;
+        }
+        uint256 newReferrerEarningBips = MAX_REFERRER_EARNING_BIPS;
+
+        vm.expectEmit();
+        emit EarningBipsForReferrersChanged(referrers, newReferrerEarningBips);
+        zeriusONFT721.setEarningBipsForReferrersBatch(referrers, newReferrerEarningBips);
+
+        for (uint256 i; i < referrers.length; i++) {
+            uint256 after_earningBipsForReferrer = zeriusONFT721.referrersEarningBips(referrers[i]);
+            assertEq(after_earningBipsForReferrer, newReferrerEarningBips, "Referrer earning bips is not updated");
+        }
+    }
+
     /// @custom:test Setting new fee collector
     /// @dev See {ZeriusONFT721-setFeeCollector}
     function test_setFeeCollector_success() public {
@@ -611,14 +635,15 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     }
 
     /// @custom:test Locking base URI
-    /// @dev See {ZeriusONFT721-lockTokenBaseURI}
-    function test_lockTokenBaseURI_success() public {
+    /// @dev See {ZeriusONFT721-setTokenBaseURILocked}
+    function test_setTokenBaseURILocked_success() public {
         bool before_tokenURILocked = zeriusONFT721.tokenBaseURILocked();
         assertFalse(before_tokenURILocked);
+        bool locked = true;
 
         vm.expectEmit();
-        emit TokenURILocked();
-        zeriusONFT721.lockTokenBaseURI();
+        emit TokenURILocked(locked);
+        zeriusONFT721.setTokenBaseURILocked(locked);
 
         bool after_tokenURILocked = zeriusONFT721.tokenBaseURILocked();
 
@@ -626,12 +651,13 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     }
 
     /// @custom:test Fail locking base URI because of URI is already locked
-    /// @dev See {ZeriusONFT721-lockTokenBaseURI}
-    function test_lockTokenBaseURI_fail_tokenURILocked() public {
-        zeriusONFT721.lockTokenBaseURI();
+    /// @dev See {ZeriusONFT721-setTokenBaseURILocked}
+    function test_setTokenBaseURILocked_fail_tokenURILocked() public {
+        bool locked = true;
+        zeriusONFT721.setTokenBaseURILocked(locked);
 
-        vm.expectRevert(abi.encodeWithSelector(ZeriusONFT721_CoreError.selector, ERROR_TOKEN_URI_LOCKED));
-        zeriusONFT721.lockTokenBaseURI();
+        vm.expectRevert(abi.encodeWithSelector(ZeriusONFT721_CoreError.selector, ERROR_INVALID_URI_LOCK_STATE));
+        zeriusONFT721.setTokenBaseURILocked(locked);
     }
 
     /// @custom:test Set new base URI
@@ -648,11 +674,11 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     /// @custom:test Fail set new base URI because of token URI is locked
     /// @dev See {ZeriusONFT721-setTokenBaseURI}
     function test_setTokenBaseURI_fail_tokenURILocked() public {
-        zeriusONFT721.lockTokenBaseURI();
+        zeriusONFT721.setTokenBaseURILocked(true);
 
         string memory newBaseTokenURI = IPFS_URI;
 
-        vm.expectRevert(abi.encodeWithSelector(ZeriusONFT721_CoreError.selector, ERROR_TOKEN_URI_LOCKED));
+        vm.expectRevert(abi.encodeWithSelector(ZeriusONFT721_CoreError.selector, ERROR_INVALID_URI_LOCK_STATE));
         zeriusONFT721.setTokenBaseURI(newBaseTokenURI);
     }
 

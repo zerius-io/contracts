@@ -22,6 +22,7 @@ contract ZeriusONFT721Script is Script {
         uint256 mintFee = 0;
         uint256 bridgeFee = 0;
         address feeCollector = 0x7988ba7A5C1993f40271bA4463BF8043d5cfaa0C;
+        uint256 referralEarningBips = 0;
 
         ZeriusONFT721 zerius = new ZeriusONFT721(
             minGasToTransfer,
@@ -30,7 +31,8 @@ contract ZeriusONFT721Script is Script {
             endMintId,
             mintFee,
             bridgeFee,
-            feeCollector
+            feeCollector,
+            referralEarningBips
         );
     }
 }
