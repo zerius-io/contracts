@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.13;
 
 import "@layerzerolabs/contracts/token/onft/ONFT721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -286,7 +286,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _validate(_exists(tokenId), ERROR_INVALID_TOKEN_ID);
-        return string(abi.encodePacked(_tokenBaseURI, "?id=", Strings.toString(tokenId)));
+        return string(abi.encodePacked(_tokenBaseURI, Strings.toString(tokenId), ".json"));
     }
 
     /************
