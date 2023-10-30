@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
 import "@layerzerolabs/contracts/token/onft/ONFT721.sol";
@@ -57,7 +57,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     event EarningBipsForReferrerChanged(address indexed referrer, uint256 newEraningBips);
     event EarningBipsForReferrersChanged(address[] indexed referrers, uint256 newEraningBips);
     event FeeCollectorChanged(address indexed oldFeeCollector, address indexed newFeeCollector);
-    event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI);
+    event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI, string fileExtension);
     event TokenURILocked(bool indexed newState);
 
     /**
@@ -113,6 +113,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     mapping (address => uint256) public referrersClaimedAmount;
 
     /// TOKEN URI ///
+    string private _tokenURIExtension;
     string private _tokenBaseURI;
     bool public tokenBaseURILocked;
 
@@ -150,7 +151,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
         uint256 _bridgeFee,
         address _feeCollector,
         uint256 _referralEarningBips
-    ) ONFT721("ZeriusNFT V0", "ZVO", _minGasToTransfer, _lzEndpoint) {
+    ) ONFT721("ZeriusONFT Minis", "ZRSM", _minGasToTransfer, _lzEndpoint) {
         require(_startMintId < _endMintId, "Invalid mint range");
         require(_endMintId < type(uint256).max, "Incorrect max mint ID");
         require(_feeCollector != address(0), "Invalid fee collector address");
@@ -256,14 +257,19 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     /**
     * @notice ADMIN Change base URI
     * @param _newTokenBaseURI new URI
+    * @param _fileExtension file extension in format ".<ext>"
     *
     * @dev emits {ZeriusONFT721-TokenURIChanged}
     */
-    function setTokenBaseURI(string calldata _newTokenBaseURI) external onlyOwner {
+    function setTokenBaseURI(
+        string calldata _newTokenBaseURI,
+        string calldata _fileExtension
+    ) external onlyOwner {
         _validate(!tokenBaseURILocked, ERROR_INVALID_URI_LOCK_STATE);
         string memory oldTokenBaseURI = _tokenBaseURI;
         _tokenBaseURI = _newTokenBaseURI;
-        emit TokenURIChanged(oldTokenBaseURI, _newTokenBaseURI);
+        _tokenURIExtension = _fileExtension;
+        emit TokenURIChanged(oldTokenBaseURI, _newTokenBaseURI, _fileExtension);
     }
 
     /**
@@ -286,7 +292,7 @@ contract ZeriusONFT721 is ONFT721, ERC721Enumerable {
     */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _validate(_exists(tokenId), ERROR_INVALID_TOKEN_ID);
-        return string(abi.encodePacked(_tokenBaseURI, Strings.toString(tokenId), ".json"));
+        return string(abi.encodePacked(_tokenBaseURI, Strings.toString(tokenId), _tokenURIExtension));
     }
 
     /************

@@ -4,10 +4,42 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc = "/opt/homebrew/bin/solc"
+solc_version = "0.8.19"
 remappings = [
     "ds-test/=lib/forge-std/lib/ds-test/src/",
     "@openzeppelin/=lib/openzeppelin-contracts/",
     "@layerzerolabs/=lib/solidity-examples/"
 ]
+optimizer = true
+optimizer_runs = 200
+
+[rpc_endpoints]
+# TESTNETS
+mumbai          = "${MUMBAI_RPC_URL}"
+zksync_testnet  = "${ZKSYNC_TESTNET_RPC_URL}"
+arbitrum_goerli = "${ARBITRUM_GOERLI_RPC_URL}"
+
+# MAINNETS
+ethereum        = "${ETHEREUM_RPC_URL}"
+arbitrum        = "${ARBITRUM_ONE_RPC_URL}"
+optimism        = "${OPTIMISM_RPC_URL}"
+polygon         = "${POLYGON_RPC_URL}"
+bsc             = "${BSC_RPC_URL}"
+avalanche       = "${AVALANCHE_RPC_URL}"
+base            = "${BASE_RPC_URL}"
+zora            = "${ZORA_RPC_URL}"
+scroll          = "${SCROLL_RPC_URL}"
+
+metis           = "${METIS_RPC_URL}"
+moonbeam        = "${MOONBEAM_RPC_URL}"
+core            = "${CORE_RPC_URL}"
+celo            = "${CELO_RPC_URL}"
+harmony         = "${HARMONY_RPC_URL}"
+canto           = "${CANTO_RPC_URL}"
+polygon_zkevm   = "${POLYGON_ZKEVM_RPC_URL}"
+fantom          = "${FANTOM_RPC_URL}"
+gnosis          = "${GNOSIS_RPC_URL}"
+nova            = "${ARBITRUM_NOVA_RPC_URL}"
+linea           = "${LINEA_RPC_URL}"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

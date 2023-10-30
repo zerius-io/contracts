@@ -30,7 +30,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     event EarningBipsForReferrerChanged(address indexed referrer, uint256 newEraningBips);
     event EarningBipsForReferrersChanged(address[] indexed referrer, uint256 newEraningBips);
     event FeeCollectorChanged(address indexed oldFeeCollector, address indexed newFeeCollector);
-    event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI);
+    event TokenURIChanged(string indexed oldTokenURI, string indexed newTokenURI, string fileExtension);
     event TokenURILocked(bool indexed newState);
     event ONFTMinted(
         address indexed minter,
@@ -80,7 +80,7 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     uint256 public constant DENOMINATOR = 10000; // 100%
     uint256 public constant MIN_GAS_TO_TRANSFER = 200_000;
     uint16 public constant LZ_VERSION = 1;
-    string public constant IPFS_URI = "https://ipfs.io/ipfs";
+    string public constant IPFS_URI = "https://ipfs.io/ipfs/";
 
 
     /**
@@ -665,10 +665,11 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
     function test_setTokenBaseURI_success() public {
         string memory before_baseTokenURI = "";
         string memory newBaseTokenURI = IPFS_URI;
+        string memory fileExtension = ".png";
 
         vm.expectEmit();
-        emit TokenURIChanged(before_baseTokenURI, newBaseTokenURI);
-        zeriusONFT721.setTokenBaseURI(newBaseTokenURI);
+        emit TokenURIChanged(before_baseTokenURI, newBaseTokenURI, fileExtension);
+        zeriusONFT721.setTokenBaseURI(newBaseTokenURI, fileExtension);
     }
 
     /// @custom:test Fail set new base URI because of token URI is locked
@@ -677,20 +678,21 @@ contract ZeriusONFT721Test is Test, IERC721Receiver {
         zeriusONFT721.setTokenBaseURILocked(true);
 
         string memory newBaseTokenURI = IPFS_URI;
+        string memory fileExtension = ".png";
 
         vm.expectRevert(abi.encodeWithSelector(ZeriusONFT721_CoreError.selector, ERROR_INVALID_URI_LOCK_STATE));
-        zeriusONFT721.setTokenBaseURI(newBaseTokenURI);
+        zeriusONFT721.setTokenBaseURI(newBaseTokenURI, fileExtension);
     }
 
     /// @custom:test Get token URI
     /// @dev See {ZeriusONFT721-tokenURI}
     function test_tokenURI_success() public mintBeforeTest {
-        zeriusONFT721.setTokenBaseURI(IPFS_URI);
+        zeriusONFT721.setTokenBaseURI(IPFS_URI, ".png");
         uint256 tokenId = zeriusONFT721.tokenCounter() - 1;
 
         string memory tokenURI = zeriusONFT721.tokenURI(tokenId);
 
-        assertEq(tokenURI, "https://ipfs.io/ipfs?id=0", "Invalid token URI");
+        assertEq(tokenURI, "https://ipfs.io/ipfs/0.png", "Invalid token URI");
     }
 
     /// @custom:test Fail get token URI because of token id is not exist
