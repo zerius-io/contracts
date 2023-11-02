@@ -3,129 +3,116 @@ pragma solidity ^0.8.0;
 
 import {Script, console2} from "forge-std/Script.sol";
 import "../src/ZeriusONFT721.sol";
+import "../src/ZeriusRefuel.sol";
 
 contract LinkONFTContractsScript is Script {
     mapping(uint16 => address) private contracts;
     mapping(uint16 => uint256) private minDstGas;
     mapping(uint256 => uint16) private lzIds;
-    uint256 private chainsCount = 11;
+    uint256 private chainsCount = 1;
+
+    struct ChainToConnect {
+        uint16 lzId;
+        address contractAddress;
+        uint256 minDstGas;
+    }
+
+    ChainToConnect[] private chainsToConnect;
+
+
+    // REFUEL
+    ChainToConnect private ETHEREUM = ChainToConnect(101, 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41, 300000); // ethereum
+    ChainToConnect private ARBITRUM = ChainToConnect(110, 0x412aea168aDd34361aFEf6a2e3FC01928Fba1248, 200000); // arbitrum
+    ChainToConnect private OPTIMISM = ChainToConnect(111, 0x2076BDd52Af431ba0E5411b3dd9B5eeDa31BB9Eb, 200000); // optimism
+    ChainToConnect private POLYGON = ChainToConnect(109, 0x2ef766b59e4603250265EcC468cF38a6a00b84b3, 250000); // polygon
+    ChainToConnect private BSC = ChainToConnect(102, 0x5B209E7c81DEaad0ffb8b76b696dBb4633A318CD, 250000); // bsc
+    ChainToConnect private AVALANCHE = ChainToConnect(106, 0x5B209E7c81DEaad0ffb8b76b696dBb4633A318CD, 250000); // avalanche
+    ChainToConnect private BASE = ChainToConnect(184, 0x9415AD63EdF2e0de7D8B9D8FeE4b939dd1e52F2C, 250000);
+    ChainToConnect private ZORA = ChainToConnect(195, 0x1fe2c567169d39CCc5299727FfAC96362b2Ab90E, 250000); // zora
+    ChainToConnect private SCROLL = ChainToConnect(214, 0xEB22C3e221080eAD305CAE5f37F0753970d973Cd, 250000); // scroll
+    ChainToConnect private ZKSYNC = ChainToConnect(165, 0x7dA50bD0fb3C2E868069d9271A2aeb7eD943c2D6, 2000000); // zkSync
+    ChainToConnect private LINEA = ChainToConnect(183, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // linea
+    ChainToConnect private NOVA = ChainToConnect(175, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // nova
+    ChainToConnect private METIS = ChainToConnect(151, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // metis
+    ChainToConnect private MOONBEAM = ChainToConnect(126, 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf, 400000); // moonbeam
+    ChainToConnect private POLYGONZKEVM = ChainToConnect(158, 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf, 250000); // polygonZkEvm
+    ChainToConnect private CORE = ChainToConnect(153, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // core
+    ChainToConnect private CELO = ChainToConnect(125, 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf, 250000); // celo
+    ChainToConnect private HARMONY = ChainToConnect(116, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // harmony
+    ChainToConnect private CANTO = ChainToConnect(159, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // canto
+    ChainToConnect private FANTOM = ChainToConnect(112, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // fantom
+    ChainToConnect private GNOSIS = ChainToConnect(145, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000); // gnosis
+
+
+    ChainToConnect private selectedChain = ARBITRUM;
+
 
     function setUp() public {
-//        uint16 ethereum = 101;
-//        uint16 arbitrum = 110;
-//        uint16 optimism = 111;
-//        uint16 polygon = 109;
-//        uint16 bsc = 102;
-//        uint16 avalanche = 106;
-//        uint16 base = 184;
-//        uint16 zora = 195;
-//        uint16 scroll = 214;
-//        uint16 zksync = 165;
-        uint16 linea = 183;
-        uint16 nova = 175;
-        uint16 metis = 151;
-        uint16 moonbeam = 126;
-        uint16 polygonZkevm = 158;
-        uint16 core = 153;
-        uint16 celo = 125;
-        uint16 harmony = 116;
-        uint16 canto = 159;
-        uint16 fantom = 112;
-        uint16 gnosis = 145;
+//        chainsToConnect.push(ChainToConnect(101, 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41, 300000)); // ethereum
+//        chainsToConnect.push(ChainToConnect(110, 0xEf916A89438607c77366f6f0c469CF80bcCA5511, 200000)); // arbitrum
+//        chainsToConnect.push(ChainToConnect(111, 0xE8bD859e64A769dA99A882fB9F6a403Fd61C0A36, 200000)); // optimism
+//        chainsToConnect.push(ChainToConnect(109, 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41, 250000)); // polygon
+//        chainsToConnect.push(ChainToConnect(102, 0x250c34D06857b9C0A036d44F86d2c1Abe514B3Da, 250000)); // bsc
+//        chainsToConnect.push(ChainToConnect(106, 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41, 250000)); // avalanche
+//        chainsToConnect.push(ChainToConnect(184, 0xFB0fc5C1B81deb666d12287E0bA4399faDD7790E, 250000)); // base
+//        chainsToConnect.push(ChainToConnect(195, 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41, 250000)); // zora
+//        chainsToConnect.push(ChainToConnect(214, 0xEB22C3e221080eAD305CAE5f37F0753970d973Cd, 250000)); // scroll
+//        chainsToConnect.push(ChainToConnect(165, 0x7dA50bD0fb3C2E868069d9271A2aeb7eD943c2D6, 2000000)); // zkSync
+//        chainsToConnect.push(ChainToConnect(183, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // linea
+//        chainsToConnect.push(ChainToConnect(175, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // nova
+//        chainsToConnect.push(ChainToConnect(151, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // metis
+//        chainsToConnect.push(ChainToConnect(126, 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf, 400000)); // moonbeam
+//        chainsToConnect.push(ChainToConnect(158, 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf, 250000)); // polygonZkEvm
+//        chainsToConnect.push(ChainToConnect(153, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // core
+//        chainsToConnect.push(ChainToConnect(125, 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf, 250000)); // celo
+//        chainsToConnect.push(ChainToConnect(116, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // harmony
+//        chainsToConnect.push(ChainToConnect(159, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // canto
+//        chainsToConnect.push(ChainToConnect(112, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // fantom
+//        chainsToConnect.push(ChainToConnect(145, 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7, 250000)); // gnosis
 
-//        lzIds[0] = ethereum;
-//        lzIds[1] = arbitrum;
-//        lzIds[2] = optimism;
-//        lzIds[3] = polygon;
-//        lzIds[4] = bsc;
-//        lzIds[5] = avalanche;
-//        lzIds[6] = base;
-//        lzIds[7] = zora;
-//        lzIds[0] = scroll;
-//        lzIds[7] = zksync;
-        lzIds[0] = linea;
-        lzIds[1] = nova;
-        lzIds[2] = metis;
-        lzIds[3] = moonbeam;
-        lzIds[4] = polygonZkevm;
-        lzIds[5] = core;
-        lzIds[6] = celo;
-        lzIds[7] = harmony;
-        lzIds[8] = canto;
-        lzIds[9] = fantom;
-        lzIds[10] = gnosis;
-
-//        contracts[ethereum] = 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41;
-//        contracts[arbitrum] = 0x250c34D06857b9C0A036d44F86d2c1Abe514B3Da;
-//        contracts[optimism] = 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41;
-//        contracts[polygon] = 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41;
-//        contracts[bsc] = 0x250c34D06857b9C0A036d44F86d2c1Abe514B3Da;
-//        contracts[avalanche] = 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41;
-//        contracts[base] = 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41;
-//        contracts[zora] = 0x178608fFe2Cca5d36f3Fc6e69426c4D3A5A74A41;
-//        contracts[scroll] = 0xEB22C3e221080eAD305CAE5f37F0753970d973Cd;
-//        contracts[zksync] = 0x7dA50bD0fb3C2E868069d9271A2aeb7eD943c2D6;
-        contracts[linea] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[nova] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[metis] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[moonbeam] = 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf;
-        contracts[polygonZkevm] = 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf;
-        contracts[core] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[celo] = 0x4c5AeDA35d8F0F7b67d6EB547eAB1df75aA23Eaf;
-        contracts[harmony] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[canto] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[fantom] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-        contracts[gnosis] = 0x5188368a92B49F30f4Cf9bEF64635bCf8459c7A7;
-
-//        minDstGas[ethereum] = 300000;
-//        minDstGas[arbitrum] = 250000;
-//        minDstGas[optimism] = 250000;
-//        minDstGas[polygon] = 250000;
-//        minDstGas[bsc] = 250000;
-//        minDstGas[avalanche] = 250000;
-//        minDstGas[base] = 250000;
-//        minDstGas[zora] = 250000;
-//        minDstGas[scroll] = 250000;
-//        minDstGas[zksync] = 2000000;
-        minDstGas[linea] = 250000;
-        minDstGas[nova] = 250000;
-        minDstGas[metis] = 250000;
-        minDstGas[moonbeam] = 400000;
-        minDstGas[polygonZkevm] = 250000;
-        minDstGas[core] = 250000;
-        minDstGas[celo] = 250000;
-        minDstGas[harmony] = 250000;
-        minDstGas[canto] = 250000;
-        minDstGas[fantom] = 250000;
-        minDstGas[gnosis] = 250000;
+        // REFUEL CONTRACT ADDRESSES
+//        chainsToConnect.push(ETHEREUM); // ethereum
+//        chainsToConnect.push(ARBITRUM); // arbitrum
+        chainsToConnect.push(OPTIMISM); // optimism
+//        chainsToConnect.push(POLYGON); // polygon
+//        chainsToConnect.push(BSC); // bsc
+//        chainsToConnect.push(AVALANCHE); // avalanche
+//        chainsToConnect.push(BASE); // base
+//        chainsToConnect.push(ZORA); // zora
+//        chainsToConnect.push(SCROLL); // scroll
+//        chainsToConnect.push(ZKSYNC); // zkSync
+//        chainsToConnect.push(LINEA); // linea
+//        chainsToConnect.push(NOVA); // nova
+//        chainsToConnect.push(METIS); // metis
+//        chainsToConnect.push(MOONBEAM); // moonbeam
+//        chainsToConnect.push(POLYGONZKEVM); // polygonZkEvm
+//        chainsToConnect.push(CORE); // core
+//        chainsToConnect.push(CELO); // celo
+//        chainsToConnect.push(HARMONY); // harmony
+//        chainsToConnect.push(CANTO); // canto
+//        chainsToConnect.push(FANTOM); // fantom
+//        chainsToConnect.push(GNOSIS); // gnosis
     }
 
     function run() public {
-        address addr = 0xEB22C3e221080eAD305CAE5f37F0753970d973Cd;
-        uint16 lzId = 214;
-        ZeriusONFT721 zerius = ZeriusONFT721(addr);
+        ZeriusRefuel zerius = ZeriusRefuel(selectedChain.contractAddress);
 
         vm.startBroadcast();
-//        zerius.mint{value: zerius.mintFee()}();
-//        zerius.mint{value: zerius.mintFee()}();
-//        zerius.mint{value: zerius.mintFee()}();
-//        zerius.mint{value: zerius.mintFee()}();
-//        zerius.mint{value: zerius.mintFee()}();
 
-//        zerius.setTokenBaseURI("https://zerius.mypinata.cloud/ipfs/Qme7km7vLAcNS4FLnJBuG8qwUJJxvDnyRV4TjYngU1oCoG/", ".png");
 
-        for (uint256 i = 0; i < chainsCount; i++) {
-            uint16 lz = lzIds[i];
-            if (lzId != lz) {
-                if (zerius.minDstGasLookup(lz, 1) == 0) {
-                    uint256 dstGas = minDstGas[lz];
-                    zerius.setMinDstGas(lz, 1, dstGas);
+        for (uint256 i = 0; i < chainsToConnect.length; i++) {
+            ChainToConnect memory chainToConnect = chainsToConnect[i];
+
+            if (selectedChain.lzId != chainToConnect.lzId) {
+
+                if (zerius.minDstGasLookup(chainToConnect.lzId, 0) == 0) {
+                    zerius.setMinDstGas(chainToConnect.lzId, 0, chainToConnect.minDstGas);
                 }
 
-                if (zerius.trustedRemoteLookup(lz).length == 0) {
-                    address dstAddr = contracts[lz];
-                    bytes memory trusted = abi.encodePacked(dstAddr, addr);
-                    zerius.setTrustedRemote(lz, trusted);
+                if (zerius.trustedRemoteLookup(chainToConnect.lzId).length == 0) {
+                    address dstAddr = chainToConnect.contractAddress;
+                    bytes memory trusted = abi.encodePacked(dstAddr, selectedChain.contractAddress);
+                    zerius.setTrustedRemote(chainToConnect.lzId, trusted);
                 }
             }
         }
@@ -133,3 +120,24 @@ contract LinkONFTContractsScript is Script {
         vm.stopBroadcast();
     }
 }
+
+//        uint16 lz = chainsToConnect[0].lzId;
+//        uint16 lzVersion = 2;
+//        uint256 gasLimitExtra = 1200000000000000;
+//        address walletAddress = msg.sender;
+//
+//        bytes memory adapterParams = abi.encodePacked(
+//            lzVersion,
+//            chainsToConnect[0].minDstGas,
+//            gasLimitExtra,
+//            walletAddress
+//        );
+//        zerius.refuel{gas: 1627800, value: 2200000000000000}(lz, abi.encodePacked(chainsToConnect[0].contractAddress), adapterParams);
+
+
+//        zerius.mint{value: zerius.mintFee()}();
+//        zerius.mint{value: zerius.mintFee()}();
+//        zerius.mint{value: zerius.mintFee()}();
+//        zerius.mint{value: zerius.mintFee()}();
+//        zerius.mint{value: zerius.mintFee()}(); //        zerius.setTokenBaseURI("https://zerius.mypinata.cloud/ipfs/Qme7km7vLAcNS4FLnJBuG8qwUJJxvDnyRV4TjYngU1oCoG/", ".png");
+
