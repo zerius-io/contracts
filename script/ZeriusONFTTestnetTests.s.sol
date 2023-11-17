@@ -34,7 +34,6 @@ contract MintAndBridgeScript is Script {
             adapterParams
         );
 
-//        console2.log(nativeFee);
         zerius.sendFrom{value: nativeFee}(
             from,
             dstChainId,
@@ -94,8 +93,8 @@ contract ClaimReferralEarningsScript is Script {
 
         vm.startBroadcast();
 
-//        zerius.setReferralEarningBips(5000);
-//        zerius.mint{value: zerius.mintFee()}(referrer);
+        zerius.setReferralEarningBips(5000);
+        zerius.mint{value: zerius.mintFee()}(referrer);
 
         zerius.claimReferrerEarnings();
 
